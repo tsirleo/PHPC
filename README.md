@@ -1,2 +1,1 @@
-# PHLC
-Параллельные высокопроизводительные вычисления, 5 курс ВМК 
+# Parallel high-performance computing
