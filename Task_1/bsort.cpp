@@ -84,6 +84,15 @@ vector<vector<int>> generateBinaryArrays(int n) {
     return binaryArrays;
 }
 
+bool checkSorted(const vector<int>& arr) {
+    for(int i = 1; i < arr.size(); i++) {
+        if (arr[i] < arr[i-1]) {
+            return false;
+        }
+    }
+    return true;
+}
+
 void testSchedule(int n) {
     ofstream inputArrFile("input_arrays.txt");
     if (!inputArrFile.is_open()) {
@@ -136,6 +145,13 @@ void testSchedule(int n) {
         k = 1;
         outputArrFile << endl << "-------------------------------( n = " << i << " )-------------------------------" << endl;
         for(const auto& array : binaryArrays) {
+            if (!checkSorted(array)) {
+                cout << "Test failed!" << endl;
+                inputArrFile.close();
+                comparatorsFile.close();
+                outputArrFile.close();
+                exit(1);
+            }
             outputArrFile << k << ".  ";
             for(int num : array) {
                 outputArrFile << num << " ";
@@ -145,6 +161,7 @@ void testSchedule(int n) {
         }
     }
 
+    cout << "All tests succeeded!" << endl;
     inputArrFile.close();
     comparatorsFile.close();
     outputArrFile.close();
