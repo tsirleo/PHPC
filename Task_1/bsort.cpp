@@ -1,4 +1,5 @@
 #include <iostream>
+#include <algorithm>
 #include <fstream>
 #include <cstring>
 #include <vector>
@@ -7,59 +8,74 @@
 
 using namespace std;
 
-int calculateTacts(int n) {
-    return (ceil(log2(2*n)) * (ceil(log2(n))) / 2);
+void calculateTacts(int first, int second, vector<int>& tacts) {
+    // Theoretical count formula
+    // return (ceil(log2(2*n)) * (ceil(log2(n))) / 2);
+
+    tacts[first] = tacts[second] = max(tacts[first], tacts[second]) + 1;
+
+    // cout << "pair: " << first << "   " << second << endl;
+    // cout << "tact of network: " << tacts[first] << endl;
+    // cout << "-----------------" << endl;
+}
+
+int getNumTacts(const vector<int>& tacts){
+    return *max_element(begin(tacts), end(tacts));
 }
 
 
-void BatcherMerge(int firstStartInd, int secondStartInd, int distance, int firstPartLen, int secondPartLen, vector<pair<int, int>>& comparators) 
+void BatcherMerge(int firstStartInd, int secondStartInd, int distance, int firstPartLen, int secondPartLen, vector<pair<int, int>>& comparators, vector<int>& tacts) 
 {
     if (firstPartLen * secondPartLen < 1) {
         return;
     }
     if (firstPartLen == 1 && secondPartLen == 1) {
         comparators.push_back(make_pair(firstStartInd, secondStartInd));
+        calculateTacts(firstStartInd, secondStartInd, tacts);
         return; 
     }
 
-    BatcherMerge(firstStartInd, secondStartInd, 2 * distance, firstPartLen / 2 + firstPartLen % 2, secondPartLen / 2 + secondPartLen % 2, comparators);
-    BatcherMerge(firstStartInd + distance, secondStartInd + distance, 2 * distance, firstPartLen / 2, secondPartLen / 2, comparators);
+    BatcherMerge(firstStartInd, secondStartInd, 2 * distance, firstPartLen / 2 + firstPartLen % 2, secondPartLen / 2 + secondPartLen % 2, comparators, tacts);
+    BatcherMerge(firstStartInd + distance, secondStartInd + distance, 2 * distance, firstPartLen / 2, secondPartLen / 2, comparators, tacts);
 
     for(int i = 1; i < firstPartLen - 1; i += 2) {
         comparators.push_back(make_pair(firstStartInd + distance * i, firstStartInd + distance * (i + 1)));
+        calculateTacts(firstStartInd + distance * i, firstStartInd + distance * (i + 1), tacts);
     }
     int ind = 0;
     if (firstPartLen % 2 == 0) {
         comparators.push_back(make_pair(firstStartInd + distance *(firstPartLen - 1), secondStartInd));
+        calculateTacts(firstStartInd + distance *(firstPartLen - 1), secondStartInd, tacts);
         ind = 1;
     }
     
     for(int i = ind; i < secondPartLen - 1; i += 2) {
         comparators.push_back(make_pair(secondStartInd + distance * i, secondStartInd + distance *(i + 1)));
+        calculateTacts(secondStartInd + distance * i, secondStartInd + distance *(i + 1), tacts);
     }
 }
 
 
-void BatcherSort(int startPos, int distance, int length, vector<pair<int, int>>& comparators) 
+void BatcherSort(int startPos, int distance, int length, vector<pair<int, int>>& comparators, vector<int>& tacts) 
 {
     if (length < 2) {
         return;
     }
 
-    BatcherSort(startPos, distance, length / 2, comparators);
-    BatcherSort(startPos + distance * length / 2, distance, length / 2 + length % 2, comparators);
-    BatcherMerge(startPos, startPos + distance * length / 2, distance, length / 2, length / 2 + length % 2, comparators);
+    BatcherSort(startPos, distance, length / 2, comparators, tacts);
+    BatcherSort(startPos + distance * length / 2, distance, length / 2 + length % 2, comparators, tacts);
+    BatcherMerge(startPos, startPos + distance * length / 2, distance, length / 2, length / 2 + length % 2, comparators, tacts);
 }
 
 
-void writeNetworkScheduleToFile(int n, vector<pair<int, int>>& comparators) {
+void writeNetworkScheduleToFile(int n, const vector<pair<int, int>>& comparators, const vector<int>& tacts) {
     ofstream file("schedule.txt");
     if (file.is_open()) {
         file << n << " 0 0" << endl;
         for (const auto& pair : comparators) {
             file << pair.first << " " << pair.second << endl;
         }
-        file << comparators.size() << endl << calculateTacts(n) << endl;
+        file << comparators.size() << endl << getNumTacts(tacts) << endl;
 
         file.close();
     }
@@ -129,12 +145,13 @@ void testSchedule(int n) {
         }
 
         vector<pair<int, int>> comparators;
-        BatcherSort(0, 1, i, comparators);
+        vector<int> tacts = vector<int>(i, 0);
+        BatcherSort(0, 1, i, comparators, tacts);
         comparatorsFile << endl << "-------------------------------( n = " << i << " )-------------------------------" << endl;
         for (const auto& pair : comparators) {
             comparatorsFile << pair.first << " " << pair.second << endl;
         }
-        comparatorsFile << "num of comparators: " << comparators.size() << endl << "num of tacts: " << calculateTacts(i) << endl;
+        comparatorsFile << "num of comparators: " << comparators.size() << endl << "num of tacts: " << getNumTacts(tacts) << endl;
 
         for(auto& array : binaryArrays) {
             for(const auto& pair : comparators) {
@@ -192,10 +209,11 @@ int main(int argc, char* argv[]) {
     }
     else {
         vector<pair<int, int>> comparators;
+        vector<int> tacts = vector<int>(n, 0);
 
-        BatcherSort(0, 1, n, comparators);
+        BatcherSort(0, 1, n, comparators, tacts);
 
-        writeNetworkScheduleToFile(n, comparators);
+        writeNetworkScheduleToFile(n, comparators, tacts);
     }
 
     return 0;
