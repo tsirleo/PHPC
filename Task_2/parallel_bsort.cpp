@@ -7,67 +7,70 @@
 #include <cfloat>
 #include <ctime>
 #include <cmath>
-#include <omp.h>
 #include <mpi.h>
+// #include <omp.h>
 
 using namespace std;
 
-
-double generateRandomDouble(double min, double max) {
-    std::random_device rd;
-    std::mt19937 gen(rd());
-    std::uniform_real_distribution<> dis(min, max);
-    return dis(gen);
+double generateRandomDouble(double i, double rank) {
+    // std::cout << sin(i) * sin(rank + 1) * rand() / RAND_MAX << std::endl;
+    return sin(i) * sin(rank + 1) * rand() / RAND_MAX;
 }
 
+// bool checkSorted(const std::vector<double>& dataArray) {
+//     bool sorted = true;
+
+//     #pragma omp parallel for
+//     for (int i = 1; i < static_cast<int>(dataArray.size()); i++) {
+//         if (dataArray[i] < dataArray[i - 1]) {
+//             #pragma omp critical
+//             { 
+//                 sorted = false; 
+//             }
+//         }
+//     }
+
+//     return sorted;
+// }
 
 bool checkSorted(const std::vector<double>& dataArray) {
-    bool sorted = true;
-
-    #pragma omp parallel for
-    for(int i = 1; i < static_cast<int>(dataArray.size()); i++) {
-        if (dataArray[i] < dataArray[i-1]) {
-            #pragma omp critical
-            {
-                sorted = false;
-            }
+    for (int i = 1; i < static_cast<int>(dataArray.size()); i++) {
+        if (dataArray[i] < dataArray[i - 1]) {
+                return false; 
         }
     }
 
-    return sorted;
+    return true;
 }
 
-
-void BatcherMerge(int firstStartInd, int secondStartInd, int distance, int firstPartLen, int secondPartLen, vector<pair<int, int>>& comparators) 
-{
+void BatcherMerge(int firstStartInd, int secondStartInd, int distance, int firstPartLen, int secondPartLen, vector<pair<int, int>>& comparators) {
     if (firstPartLen * secondPartLen < 1) {
         return;
     }
     if (firstPartLen == 1 && secondPartLen == 1) {
         comparators.push_back(make_pair(firstStartInd, secondStartInd));
-        return; 
+        return;
     }
 
     BatcherMerge(firstStartInd, secondStartInd, 2 * distance, firstPartLen / 2 + firstPartLen % 2, secondPartLen / 2 + secondPartLen % 2, comparators);
     BatcherMerge(firstStartInd + distance, secondStartInd + distance, 2 * distance, firstPartLen / 2, secondPartLen / 2, comparators);
 
-    for(int i = 1; i < firstPartLen - 1; i += 2) {
+    for (int i = 1; i < firstPartLen - 1; i += 2) {
         comparators.push_back(make_pair(firstStartInd + distance * i, firstStartInd + distance * (i + 1)));
     }
+
     int ind = 0;
     if (firstPartLen % 2 == 0) {
-        comparators.push_back(make_pair(firstStartInd + distance *(firstPartLen - 1), secondStartInd));
+        comparators.push_back(make_pair(firstStartInd + distance * (firstPartLen - 1), secondStartInd));
         ind = 1;
     }
-    
-    for(int i = ind; i < secondPartLen - 1; i += 2) {
-        comparators.push_back(make_pair(secondStartInd + distance * i, secondStartInd + distance *(i + 1)));
+
+    for (int i = ind; i < secondPartLen - 1; i += 2) {
+        comparators.push_back(make_pair(secondStartInd + distance * i, secondStartInd + distance * (i + 1)));
     }
 }
 
-
-void BatcherSort(int startPos, int distance, int length, vector<pair<int, int>>& comparators) 
-{
+void BatcherSort(int startPos, int distance, int length, vector<pair<int, int>>& comparators) {
     if (length < 2) {
         return;
     }
@@ -77,9 +80,8 @@ void BatcherSort(int startPos, int distance, int length, vector<pair<int, int>>&
     BatcherMerge(startPos, startPos + distance * length / 2, distance, length / 2, length / 2 + length % 2, comparators);
 }
 
-
 void Comparator(int proc_ind1, int proc_ind2, int rank, vector<double>& localData) {
-    if (rank != proc_ind1 && rank != proc_ind2)
+    if (rank != proc_ind1 && rank != proc_ind2) 
         return;
 
     MPI_Request sendRequest;
@@ -97,7 +99,7 @@ void Comparator(int proc_ind1, int proc_ind2, int rank, vector<double>& localDat
         // #pragma omp parallel for
         for (int ia = 0, ib = 0, k = 0; k < chunkSize; ++k) {
             // int ia = 0, ib = 0;
-            if (localData[ia] < receivedData[ib]) 
+            if (localData[ia] < receivedData[ib])
                 tmp[k] = localData[ia++];
             else
                 tmp[k] = receivedData[ib++];
@@ -113,9 +115,9 @@ void Comparator(int proc_ind1, int proc_ind2, int rank, vector<double>& localDat
         // #pragma omp parallel for
         for (int ia = chunkSize - 1, ib = chunkSize - 1, k = chunkSize - 1; k >= 0; --k) {
             // int ia = chunkSize - 1, ib = chunkSize - 1;
-            if (localData[ia] > receivedData[ib]) 
+            if (localData[ia] > receivedData[ib])
                 tmp[k] = localData[ia--];
-            else 
+            else
                 tmp[k] = receivedData[ib--];
         }
 
@@ -123,23 +125,16 @@ void Comparator(int proc_ind1, int proc_ind2, int rank, vector<double>& localDat
     }
 }
 
-
 int main(int argc, char** argv) {
-    string sizeFlag = "--size=";
-    int vectorSize = 1000;
+    int vectorSize = 100000;
 
-    const int num_threads = omp_get_max_threads();
-    omp_set_num_threads(num_threads);
+    // const int num_threads = omp_get_max_threads();
+    // omp_set_num_threads(num_threads);
 
     // cout << num_threads << endl;
 
-    for (int i = 1; i < argc; ++i) {
-        string arg = argv[i];
-        if (arg.compare(0, sizeFlag.length(), sizeFlag) == 0) {
-            vectorSize = atoi(arg.substr(sizeFlag.length()).c_str());
-            break;
-        }
-    }
+    vectorSize = atoi(argv[1]);
+    // std::cout << vectorSize << std::endl;
 
     MPI_Init(&argc, &argv);
 
@@ -149,15 +144,21 @@ int main(int argc, char** argv) {
 
     int elementsPerProcess = vectorSize / numProcesses;
     vector<double> localData(elementsPerProcess);
+    srand(time(NULL) + rank);
 
-    #pragma omp parallel for
+    // #pragma omp parallel for
     for (int i = 0; i < elementsPerProcess; i++) {
-        localData[i] = generateRandomDouble(0.0, 10000.0);
+        localData[i] = generateRandomDouble(i, rank);
     }
+
+    // for (int i = 0; i < elementsPerProcess; i++) {
+    //   std::cout << localData[i] << std::endl;
+    // }
 
     vector<pair<int, int>> comparators;
     BatcherSort(0, 1, numProcesses, comparators);
 
+    MPI_Barrier(MPI_COMM_WORLD);
     auto start = MPI_Wtime();
     sort(localData.begin(), localData.end());
 
@@ -176,8 +177,8 @@ int main(int argc, char** argv) {
     MPI_Reduce(&delta, &max_time, 1, MPI_DOUBLE, MPI_MAX, 0, MPI_COMM_WORLD);
 
     if (rank == 0) {
-        for (int i = numProcesses * elementsPerProcess; i < vectorSize; i++)
-            dataArray[i] = DBL_MAX;
+        // for (int i = numProcesses * elementsPerProcess; i < vectorSize; i++)
+        //   dataArray[i] = DBL_MAX;
 
         // cout << "Sorted Array: ";
         // for (const auto& element : dataArray) {
