@@ -3,7 +3,7 @@ CC_P = mpic++
 
 run_polus: compile
 	for N in 32768 131072 524288 1048576 4194304 16777216 ; do \
-		for p in 1 2 4 8 16 32 48 56 ; do \
+		for p in 1 2 4 8 16 32 48 ; do \
 			mpisubmit.pl -p $$p -t 8 -w 00:30 --stdout attempt\_$$p\_$$N.out --stderr attempt\_$$p\_$$N.err "./pbsort --size=$$N" ; \
 		done \
 	done \

@@ -127,7 +127,6 @@ void Comparator(int proc_ind1, int proc_ind2, int rank, vector<double>& localDat
 int main(int argc, char** argv) {
     string sizeFlag = "--size=";
     int vectorSize = 1000;
-    double time0, time1;
 
     const int num_threads = omp_get_max_threads();
     omp_set_num_threads(num_threads);
@@ -159,18 +158,22 @@ int main(int argc, char** argv) {
     vector<pair<int, int>> comparators;
     BatcherSort(0, 1, numProcesses, comparators);
 
-    time0 = MPI_Wtime();
+    auto start = MPI_Wtime();
     sort(localData.begin(), localData.end());
 
-    MPI_Barrier(MPI_COMM_WORLD);
+    // MPI_Barrier(MPI_COMM_WORLD);
     for (const auto& pair : comparators) {
         Comparator(pair.first, pair.second, rank, localData);
     }
+    auto end = MPI_Wtime();
+    double delta = end - start;
 
     MPI_Barrier(MPI_COMM_WORLD);
     vector<double> dataArray(vectorSize);
     MPI_Gather(localData.data(), elementsPerProcess, MPI_DOUBLE, dataArray.data(), elementsPerProcess, MPI_DOUBLE, 0, MPI_COMM_WORLD);
-    time1 = MPI_Wtime();
+
+    double max_time;
+    MPI_Reduce(&delta, &max_time, 1, MPI_DOUBLE, MPI_MAX, 0, MPI_COMM_WORLD);
 
     if (rank == 0) {
         for (int i = numProcesses * elementsPerProcess; i < vectorSize; i++)
@@ -187,7 +190,7 @@ int main(int argc, char** argv) {
         // else
         //     cout << "ERROR: vector is not sorted!" << endl;
 
-        cout << "Sorting time in seconds = " << time1 - time0 << endl;
+        cout << "Sorting time in seconds = " << max_time << endl;
     }
 
     MPI_Finalize();
