@@ -38,39 +38,6 @@ bool checkSorted(const std::vector<double>& dataArray) {
 }
 
 
-void parallelChunkSort(std::vector<double>& localData) {
-    #pragma omp parallel
-    {
-        #pragma omp sections
-        {
-            #pragma omp section
-            {
-                sort(localData.begin(), localData.begin() + localData.size() / 4);
-            }
-
-            #pragma omp section
-            {
-                sort(localData.begin() + localData.size() / 4, localData.begin() + localData.size() / 2);
-            }
-
-            #pragma omp section
-            {
-                sort(localData.begin() + localData.size() / 2, localData.begin() + 3 * localData.size() / 4);
-            }
-
-            #pragma omp section
-            {
-                sort(localData.begin() + 3 * localData.size() / 4, localData.end());
-            }
-        }
-    }
-
-    inplace_merge(localData.begin(), localData.begin() + localData.size() / 4, localData.begin() + localData.size() / 2);
-    inplace_merge(localData.begin() + localData.size() / 2, localData.begin() + 3 * localData.size() / 4, localData.end());
-    inplace_merge(localData.begin(), localData.begin() + localData.size() / 2, localData.end());
-}
-
-
 void BatcherMerge(int firstStartInd, int secondStartInd, int distance, int firstPartLen, int secondPartLen, vector<pair<int, int>>& comparators) 
 {
     if (firstPartLen * secondPartLen < 1) {
@@ -127,9 +94,9 @@ void Comparator(int proc_ind1, int proc_ind2, int rank, vector<double>& localDat
         MPI_Recv(receivedData.data(), chunkSize, MPI_DOUBLE, proc_ind2, proc_ind2, MPI_COMM_WORLD, &getStatus);
         MPI_Wait(&sendRequest, &getStatus);
 
-        #pragma omp parallel for
-        for (int k = 0; k < chunkSize; ++k) {
-            int ia = 0, ib = 0;
+        // #pragma omp parallel for
+        for (int ia = 0, ib = 0, k = 0; k < chunkSize; ++k) {
+            // int ia = 0, ib = 0;
             if (localData[ia] < receivedData[ib]) 
                 tmp[k] = localData[ia++];
             else
@@ -143,9 +110,9 @@ void Comparator(int proc_ind1, int proc_ind2, int rank, vector<double>& localDat
         MPI_Recv(receivedData.data(), chunkSize, MPI_DOUBLE, proc_ind1, proc_ind1, MPI_COMM_WORLD, &getStatus);
         MPI_Wait(&sendRequest, &getStatus);
 
-        #pragma omp parallel for
-        for (int k = chunkSize - 1; k >= 0; --k) {
-            int ia = chunkSize - 1, ib = chunkSize - 1;
+        // #pragma omp parallel for
+        for (int ia = chunkSize - 1, ib = chunkSize - 1, k = chunkSize - 1; k >= 0; --k) {
+            // int ia = chunkSize - 1, ib = chunkSize - 1;
             if (localData[ia] > receivedData[ib]) 
                 tmp[k] = localData[ia--];
             else 
@@ -193,10 +160,7 @@ int main(int argc, char** argv) {
     BatcherSort(0, 1, numProcesses, comparators);
 
     time0 = MPI_Wtime();
-    if (localData.size() > 1000 && numProcesses > 1)
-        parallelChunkSort(localData);
-    else
-        sort(localData.begin(), localData.end());
+    sort(localData.begin(), localData.end());
 
     MPI_Barrier(MPI_COMM_WORLD);
     for (const auto& pair : comparators) {
@@ -218,10 +182,10 @@ int main(int argc, char** argv) {
         // }
         // cout << endl;
 
-        if (checkSorted(dataArray))
-            cout << "Parallel sort succeded!"<< endl;
-        else
-            cout << "ERROR: vector is not sorted!" << endl;
+        // if (checkSorted(dataArray))
+        //     cout << "Parallel sort succeded!"<< endl;
+        // else
+        //     cout << "ERROR: vector is not sorted!" << endl;
 
         cout << "Sorting time in seconds = " << time1 - time0 << endl;
     }
